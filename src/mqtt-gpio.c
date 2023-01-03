@@ -31,6 +31,7 @@ typedef struct {
 typedef struct {
 	char *topicStr;
 	char *gpioName;
+	int qos;
 } SUBinfo_t;
 
 static char *defaultConfigFileName_G = NULL;
@@ -368,6 +369,16 @@ process_config_file (void)
 				return false;
 			}
 
+			// qos
+			token = strtok(NULL, delim);
+			if (token == NULL) {
+				printf("   invalid config line #%d: qos expected\n", lineCnt);
+				return false;
+			}
+			if (verbose_G > 1)
+				printf("   qos: %s\n", token);
+			subInfo_G[subInfoCnt_G].qos = atoi(token);
+
 			++subInfoCnt_G;
 			continue;
 		}
@@ -441,6 +452,7 @@ init_SUBinfo (void)
 			printf("SUB[%d]\n", i);
 			printf("\ttopic: %s\n", subInfo_G[i].topicStr);
 			printf("\tgpio: %s\n", subInfo_G[i].gpioName);
+			printf("\tqos: %d\n", subInfo_G[i].qos);
 		}
 	}
 
@@ -493,7 +505,7 @@ connect_callback (struct mosquitto *mosq, NOTU void *userdata, int result)
 			printf("connected!\n");
 
 		for (i=0; i<subInfoCnt_G; ++i) {
-			ret = mosquitto_subscribe(mosq, NULL, subInfo_G[i].topicStr, 0);
+			ret = mosquitto_subscribe(mosq, NULL, subInfo_G[i].topicStr, subInfo_G[i].qos);
 			if (ret != MOSQ_ERR_SUCCESS)
 				printf("can't subscribe to topic: '%s'\n", subInfo_G[i].topicStr);
 			else
