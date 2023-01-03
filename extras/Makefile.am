@@ -2,11 +2,11 @@
 ## Copyright (C) 2023  Trevor Woerner <twoerner@gmail.com>
 
 ########################
-## src/Makefile.am
+# extras/Makefile.am
 ########################
-SUBDIRS =
-etcpkgdir = $(sysconfdir)/$(PACKAGE)
-AM_CPPFLAGS = -Wall -Wextra -Werror -DETCPKGDIR=\"$(etcpkgdir)\"
+SUBDIRS = 
 
-bin_PROGRAMS = mqtt-gpio
-mqtt_gpio_SOURCES = mqtt-gpio.c
+etcpkgdir = $(sysconfdir)/$(PACKAGE)
+dist_etcpkg_DATA = mqtt-gpio.conf
+
+EXTRA_DIST = mqtt-gpiod mqtt-gpio.service

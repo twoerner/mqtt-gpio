@@ -1,0 +1,58 @@
+#! /bin/sh
+
+# System V init script for mqtt-gpio
+# Adapted from the script for chrony
+
+### BEGIN INIT INFO
+# Provides:        mqtt-gpio
+# Required-Start:  $network $remote_fs $syslog
+# Required-Stop:   $network $remote_fs $syslog
+# Default-Start:   2 3 4 5
+# Default-Stop:
+# Short-Description: Start mqtt-gpio
+### END INIT INFO
+
+PATH=/sbin:/bin:/usr/bin:/usr/sbin
+
+DAEMON=/usr/bin/mqtt-gpio
+PIDFILE=/run/mqtt-gpio/mqtt-gpio.pid
+
+test -x $DAEMON -a -r /etc/mqtt-gpio/mqtt-gpio.conf || exit 0
+
+# Source function library.
+. /etc/init.d/functions
+
+# Functions to do individual actions
+startdaemon(){
+	echo -n "Starting mqtt-gpio: "
+	start-stop-daemon --start --quiet --oknodo --pidfile $PIDFILE --startas $DAEMON -- "$@"
+	echo "done"
+}
+stopdaemon(){
+	echo -n "Stopping mqtt-gpio: "
+	start-stop-daemon --stop --quiet --oknodo -p $PIDFILE
+	echo "done"
+}
+
+case "$1" in
+  start)
+	startdaemon
+	;;
+  stop)
+	stopdaemon
+	;;
+  force-reload | restart | reload)
+	stopdaemon
+	startdaemon
+	;;
+  status)
+	status /usr/bin/mqtt-gpio;
+	exit $?
+	;;
+  *)
+	echo "Usage: mqtt-gpiod { start | stop | status | restart | reload }" >&2
+	exit 1
+	;;
+esac
+
+exit 0

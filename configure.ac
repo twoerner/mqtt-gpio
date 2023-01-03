@@ -9,7 +9,7 @@ AC_CONFIG_MACRO_DIRS([m4])
 AM_INIT_AUTOMAKE([foreign no-dist-gzip dist-xz])
 AM_CONFIG_HEADER(cfg/config.h)
 
-SUBDIRS="src"
+SUBDIRS="src extras"
 
 dnl **********************************
 dnl checks for programs
@@ -46,4 +46,5 @@ dnl **********************************
 AC_SUBST(SUBDIRS)
 AC_OUTPUT(Makefile
 cfg/Makefile
+extras/Makefile
 src/Makefile)
