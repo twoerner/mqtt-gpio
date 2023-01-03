@@ -1,3 +1,8 @@
 mqtt-gpio
 ^^^^^^^^^
 A program to link MQTT messages to actions on GPIO pins.
+
+Given a configuration file (see extras/mqtt-gpio.conf as an example), the
+user associates arbitrary MQTT topics with arbitrary GPIO pins (linked via
+a user-created string). An "ON" message received on any specified topic
+will turn on the associated GPIO pin; an "OFF" message does the opposite.
