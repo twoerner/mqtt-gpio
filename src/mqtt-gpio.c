@@ -44,6 +44,7 @@ static int subInfoCnt_G = 0;
 static char *mqttServer_G = NULL;
 static int mqttServerPort_G = 0;
 
+static bool set_default_config_filename (void);
 static void usage (char *pgm);
 static bool parse_cmdline (int argc, char *argv[]);
 static bool process_config_file (void);
@@ -56,22 +57,13 @@ static void process_message (struct mosquitto *mosq, void *userdata, const struc
 int
 main (int argc, char *argv[])
 {
-	size_t len, ret;
+	size_t ret;
 	struct mosquitto *mosq;
 
-	// set default config file/location based on ./configure
-	len = strlen(ETCPKGDIR) + strlen(DEFAULT_CONFIG_FILE);
-	defaultConfigFileName_G = (char*)malloc(len + 1);
-	if (defaultConfigFileName_G == NULL) {
-		perror("malloc()");
-		return EXIT_FAILURE;
-	}
-	memset(defaultConfigFileName_G, 0, len+1);
-	defaultConfigFileName_G = strcat(defaultConfigFileName_G, ETCPKGDIR);
-	defaultConfigFileName_G = strcat(defaultConfigFileName_G, DEFAULT_CONFIG_FILE);
-	userConfigFile_G = defaultConfigFileName_G;
-
 	atexit(cleanup);
+
+	if (!set_default_config_filename())
+		return EXIT_FAILURE;
 
 	if (!parse_cmdline(argc,argv)) {
 		usage(argv[0]);
@@ -117,6 +109,25 @@ main (int argc, char *argv[])
 	mosquitto_loop_forever(mosq, -1, 1);
 
 	return EXIT_SUCCESS;
+}
+
+static bool
+set_default_config_filename (void)
+{
+	size_t len;
+
+	// set default config file/location based on ./configure
+	len = strlen(ETCPKGDIR) + strlen(DEFAULT_CONFIG_FILE);
+	defaultConfigFileName_G = (char*)malloc(len + 1);
+	if (defaultConfigFileName_G == NULL) {
+		perror("malloc()");
+		return false;
+	}
+	memset(defaultConfigFileName_G, 0, len+1);
+	defaultConfigFileName_G = strcat(defaultConfigFileName_G, ETCPKGDIR);
+	defaultConfigFileName_G = strcat(defaultConfigFileName_G, DEFAULT_CONFIG_FILE);
+	userConfigFile_G = defaultConfigFileName_G;
+	return true;
 }
 
 static void
