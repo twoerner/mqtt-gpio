@@ -6,7 +6,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 Restart=always
-RestartSec=1
+RestartSec=10
 ExecStart=/usr/bin/mqtt-gpio
 
 [Install]
