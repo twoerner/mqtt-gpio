@@ -443,10 +443,13 @@ init_mosquitto (void)
 	mosquitto_connect_callback_set(mosq_G, connect_callback);
 	mosquitto_message_callback_set(mosq_G, process_message);
 
-	ret = mosquitto_connect(mosq_G, mqttServer_G, mqttServerPort_G, 10);
-	if (ret != MOSQ_ERR_SUCCESS) {
-		printf("can't connect to broker:%s port:%d\n", mqttServer_G, mqttServerPort_G);
-		exit(EXIT_FAILURE);
+	// loop forever, if necessary, on first connection
+	// on failure, wait 60 seconds before trying again
+	while (1) {
+		ret = mosquitto_connect(mosq_G, mqttServer_G, mqttServerPort_G, 10);
+		if (ret == MOSQ_ERR_SUCCESS)
+			break;
+		sleep(60);
 	}
 }
 
