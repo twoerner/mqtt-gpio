@@ -455,6 +455,11 @@ cleanup (void)
 {
 	int i;
 
+	if (mosq_G != NULL) {
+		mosquitto_destroy(mosq_G);
+		mosquitto_lib_cleanup();
+	}
+
 	if (userConfigFile_G == defaultConfigFileName_G)
 		free(defaultConfigFileName_G);
 
