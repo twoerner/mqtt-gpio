@@ -43,6 +43,7 @@ static SUBinfo_t *subInfo_G = NULL;
 static int subInfoCnt_G = 0;
 static char *mqttServer_G = NULL;
 static int mqttServerPort_G = 0;
+static struct mosquitto *mosq_G = NULL;
 
 static void usage (char *pgm);
 static void parse_cmdline (int argc, char *argv[]);
@@ -50,6 +51,7 @@ static void set_default_config_filename (void);
 static void process_config_file (void);
 static void init_SUBinfo (void);
 static void init_GPIOinfo (void);
+static void init_mosquitto (void);
 static void cleanup (void);
 static void connect_callback (struct mosquitto *mosq, void *userdata, int result);
 static void process_message (struct mosquitto *mosq, void *userdata, const struct mosquitto_message *msg);
@@ -57,9 +59,6 @@ static void process_message (struct mosquitto *mosq, void *userdata, const struc
 int
 main (int argc, char *argv[])
 {
-	size_t ret;
-	struct mosquitto *mosq;
-
 	atexit(cleanup);
 
 	set_default_config_filename();
@@ -67,29 +66,8 @@ main (int argc, char *argv[])
 	process_config_file();
 	init_GPIOinfo();
 	init_SUBinfo();
-
-	ret = mosquitto_lib_init();
-	if (ret != MOSQ_ERR_SUCCESS) {
-		printf("can't initialize mosquitto library\n");
-		return EXIT_FAILURE;
-	}
-
-	mosq = mosquitto_new(NULL, true, NULL);
-	if (mosq == NULL) {
-		perror("mosquitto_new()");
-		return EXIT_FAILURE;
-	}
-
-	mosquitto_connect_callback_set(mosq, connect_callback);
-	mosquitto_message_callback_set(mosq, process_message);
-
-	ret = mosquitto_connect(mosq, mqttServer_G, mqttServerPort_G, 10);
-	if (ret != MOSQ_ERR_SUCCESS) {
-		printf("can't connect to broker:%s port:%d\n", mqttServer_G, mqttServerPort_G);
-		return EXIT_FAILURE;
-	}
-
-	mosquitto_loop_forever(mosq, -1, 1);
+	init_mosquitto();
+	mosquitto_loop_forever(mosq_G, -1, 1);
 
 	return EXIT_SUCCESS;
 }
@@ -442,6 +420,33 @@ init_SUBinfo (void)
 			printf("\tgpio: %s\n", subInfo_G[i].gpioName);
 			printf("\tqos: %d\n", subInfo_G[i].qos);
 		}
+	}
+}
+
+static void
+init_mosquitto (void)
+{
+	int ret;
+
+	ret = mosquitto_lib_init();
+	if (ret != MOSQ_ERR_SUCCESS) {
+		printf("can't initialize mosquitto library\n");
+		exit(EXIT_FAILURE);
+	}
+
+	mosq_G = mosquitto_new(NULL, true, NULL);
+	if (mosq_G == NULL) {
+		perror("mosquitto_new()");
+		exit(EXIT_FAILURE);
+	}
+
+	mosquitto_connect_callback_set(mosq_G, connect_callback);
+	mosquitto_message_callback_set(mosq_G, process_message);
+
+	ret = mosquitto_connect(mosq_G, mqttServer_G, mqttServerPort_G, 10);
+	if (ret != MOSQ_ERR_SUCCESS) {
+		printf("can't connect to broker:%s port:%d\n", mqttServer_G, mqttServerPort_G);
+		exit(EXIT_FAILURE);
 	}
 }
 
