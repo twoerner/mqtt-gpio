@@ -427,6 +427,7 @@ static void
 init_mosquitto (void)
 {
 	int ret;
+	int sleepSec = 1;
 
 	ret = mosquitto_lib_init();
 	if (ret != MOSQ_ERR_SUCCESS) {
@@ -449,7 +450,9 @@ init_mosquitto (void)
 		ret = mosquitto_connect(mosq_G, mqttServer_G, mqttServerPort_G, 10);
 		if (ret == MOSQ_ERR_SUCCESS)
 			break;
-		sleep(60);
+		sleep(sleepSec);
+		if (sleepSec < 60)
+			sleepSec *= 2;
 	}
 }
 
