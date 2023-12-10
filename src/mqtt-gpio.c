@@ -32,6 +32,7 @@ typedef struct {
 	char *topicStr;
 	char *gpioName;
 	int qos;
+	bool inv;
 } SUBinfo_t;
 
 static char *defaultConfigFileName_G = NULL;
@@ -348,6 +349,15 @@ process_config_file (void)
 				printf("   qos: %s\n", token);
 			subInfo_G[subInfoCnt_G].qos = atoi(token);
 
+			// INV [optional]
+			token = strtok(NULL, delim);
+			if (token != NULL) {
+				if (verbose_G > 1)
+					printf("   INV: %s\n", token);
+				if (strncmp(token, "INV", 3) == 0)
+					subInfo_G[subInfoCnt_G].inv = true;
+			}
+
 			++subInfoCnt_G;
 			continue;
 		}
@@ -536,10 +546,17 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 		if (strncmp(msg->topic, subInfo_G[topic].topicStr, strlen(subInfo_G[topic].topicStr)) == 0) {
 			for (gpio=0; gpio<gpioInfoCnt_G; ++gpio) {
 				if (strncmp(subInfo_G[topic].gpioName, gpioInfo_G[gpio].gpioName, strlen(gpioInfo_G[gpio].gpioName)) == 0) {
+					if (subInfo_G[topic].inv) {
+						if (val == 0)
+							val = 1;
+						if (val == 1)
+							val = 0;
+					}
 					if (verbose_G)
-						printf("setting gpio chip %s pin %d to %d\n",
+						printf("setting gpio chip %s pin %d to %d%s\n",
 								gpioInfo_G[gpio].chipStr,
-								gpioInfo_G[gpio].pin, val);
+								gpioInfo_G[gpio].pin, val,
+								subInfo_G[topic].inv? " INV" : "");
 					gpiod_line_set_value(gpioInfo_G[gpio].line, val);
 				}
 			}
