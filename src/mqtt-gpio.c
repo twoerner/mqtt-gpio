@@ -549,7 +549,7 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 					if (subInfo_G[topic].inv) {
 						if (val == 0)
 							val = 1;
-						if (val == 1)
+						else if (val == 1)
 							val = 0;
 					}
 					if (verbose_G)
