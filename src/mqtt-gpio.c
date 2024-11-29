@@ -11,8 +11,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <signal.h>
 #include <gpiod.h>
 #include <mosquitto.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 
 #include "config.h"
 
@@ -29,6 +33,13 @@ typedef struct {
 } GPIOinfo_t;
 
 typedef struct {
+	char *actionName;
+	char *cmdStr;
+	pid_t pid;
+	bool valid;
+} CMDinfo_t;
+
+typedef struct {
 	char *topicStr;
 	char *gpioName;
 	int qos;
@@ -42,6 +53,8 @@ static GPIOinfo_t *gpioInfo_G = NULL;
 static int gpioInfoCnt_G = 0;
 static SUBinfo_t *subInfo_G = NULL;
 static int subInfoCnt_G = 0;
+static CMDinfo_t *cmdInfo_G = NULL;
+static int cmdInfoCnt_G = 0;
 static char *mqttServer_G = NULL;
 static int mqttServerPort_G = 0;
 static struct mosquitto *mosq_G = NULL;
@@ -52,6 +65,7 @@ static void set_default_config_filename (void);
 static void process_config_file (void);
 static void init_SUBinfo (void);
 static void init_GPIOinfo (void);
+static void init_CMDinfo (void);
 static void init_mosquitto (void);
 static void cleanup (void);
 static void connect_callback (struct mosquitto *mosq, void *userdata, int result);
@@ -66,6 +80,7 @@ main (int argc, char *argv[])
 	parse_cmdline(argc,argv);
 	process_config_file();
 	init_GPIOinfo();
+	init_CMDinfo();
 	init_SUBinfo();
 	init_mosquitto();
 	mosquitto_loop_forever(mosq_G, -1, 1);
@@ -292,6 +307,55 @@ process_config_file (void)
 			continue;
 		}
 
+		// CMD
+		if (strcmp(token, "CMD") == 0) {
+			if (verbose_G > 1)
+				printf(" found a CMD (cnt:%u)\n", cmdInfoCnt_G);
+
+			if ((cmdInfoCnt_G+1) == INT_MAX) {
+				printf("  no more room in CMD table, not added\n");
+				continue;
+			}
+			cmdInfo_G = (CMDinfo_t*)realloc(cmdInfo_G,
+					((cmdInfoCnt_G+1) * sizeof(CMDinfo_t)));
+			if (cmdInfo_G == NULL) {
+				perror("realloc(CMD)");
+				exit(EXIT_FAILURE);
+			}
+			memset(&cmdInfo_G[cmdInfoCnt_G], 0, sizeof(CMDinfo_t));
+			if (verbose_G > 1)
+				printf("  realloc(CMD)'ed\n");
+
+			// action name
+			token = strtok(NULL, delim);
+			if (token == NULL) {
+				printf("   invalid config line #%d: cmd name expected\n", lineCnt);
+				exit(EXIT_FAILURE);
+			}
+			if (verbose_G > 1)
+				printf("   cmd name: %s\n", token);
+			cmdInfo_G[cmdInfoCnt_G].actionName = strdup(token);
+			if (cmdInfo_G[cmdInfoCnt_G].actionName == NULL) {
+				perror("strdup(action name)");
+				exit(EXIT_FAILURE);
+			}
+
+			// cmd to run (read up to the end of the line"
+			token = strtok(NULL, "\n");
+			if (token == NULL) {
+				printf("   invalid config line #%d: cmd to run expected\n", lineCnt);
+				exit(EXIT_FAILURE);
+			}
+			cmdInfo_G[cmdInfoCnt_G].cmdStr = strdup(token);
+			if (cmdInfo_G[cmdInfoCnt_G].cmdStr == NULL) {
+				perror("strdup(cmd str)");
+				exit(EXIT_FAILURE);
+			}
+
+			++cmdInfoCnt_G;
+			continue;
+		}
+
 		// SUB
 		if (strcmp(token, "SUB") == 0) {
 			if (verbose_G > 1)
@@ -413,6 +477,69 @@ init_GPIOinfo (void)
 }
 
 static void
+init_CMDinfo (void)
+{
+	int i;
+	int ret;
+	char *cmdDup_p, *token_p;
+	struct stat statInfo;
+
+	if (verbose_G > 0)
+		printf("number of CMD items: %d\n", cmdInfoCnt_G);
+
+	if (cmdInfoCnt_G <= 0)
+		return;
+
+	for (i=0; i<cmdInfoCnt_G; ++i) {
+		if (verbose_G > 0) {
+			printf("CMD[%d]\n", i);
+			printf("\taction: %s\n", cmdInfo_G[i].actionName);
+			printf("\tcmd: %s\n", cmdInfo_G[i].cmdStr);
+		}
+
+		cmdInfo_G[i].valid = false;
+
+		cmdDup_p = strdup(cmdInfo_G[i].cmdStr);
+		if (cmdDup_p == NULL) {
+			printf("\t\tstdup() failure\n");
+			continue;
+		}
+		token_p = strtok(cmdDup_p, " \t\n");
+		if (token_p == NULL) {
+			printf("\t\tstrtok() failure\n");
+			continue;
+		}
+
+		ret = stat(cmdDup_p, &statInfo);
+		if (ret != 0) {
+			cmdInfo_G[i].valid = false;
+			printf("\t\tstat() failure, marked invalid\n");
+			if (cmdDup_p != NULL)
+				free(cmdDup_p);
+			continue;
+		}
+		if (!S_ISREG(statInfo.st_mode)) {
+			cmdInfo_G[i].valid = false;
+			printf("\t\tnot a regular file, marked invalid\n");
+			if (cmdDup_p != NULL)
+				free(cmdDup_p);
+			continue;
+		}
+		if (!(statInfo.st_mode & S_IXOTH)) {
+			cmdInfo_G[i].valid = false;
+			printf("\t\tnot executable, marked invalid\n");
+			if (cmdDup_p != NULL)
+				free(cmdDup_p);
+			continue;
+		}
+		cmdInfo_G[i].valid = true;
+		printf("\tvalid: %s\n", cmdInfo_G[i].valid? "yes" : "no");
+		if (cmdDup_p != NULL)
+			free(cmdDup_p);
+	}
+}
+
+static void
 init_SUBinfo (void)
 {
 	int i;
@@ -529,7 +656,7 @@ connect_callback (struct mosquitto *mosq, NOTU void *userdata, int result)
 static void
 process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct mosquitto_message *msg)
 {
-	int topic, gpio, val;
+	int topic, gpio, cmd, val;
 
 	// check payload
 	val = -1;
@@ -544,6 +671,7 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 
 	for (topic=0; topic<subInfoCnt_G; ++topic) {
 		if (strncmp(msg->topic, subInfo_G[topic].topicStr, strlen(subInfo_G[topic].topicStr)) == 0) {
+			// check for any gpios with this topic
 			for (gpio=0; gpio<gpioInfoCnt_G; ++gpio) {
 				if (strncmp(subInfo_G[topic].gpioName, gpioInfo_G[gpio].gpioName, strlen(gpioInfo_G[gpio].gpioName)) == 0) {
 					if (subInfo_G[topic].inv) {
@@ -558,6 +686,40 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 								gpioInfo_G[gpio].pin, val,
 								subInfo_G[topic].inv? " INV" : "");
 					gpiod_line_set_value(gpioInfo_G[gpio].line, val);
+				}
+			}
+
+			// check for any cmds with this topic
+			for (cmd=0; cmd<cmdInfoCnt_G; ++cmd) {
+				if (strncmp(subInfo_G[topic].gpioName, cmdInfo_G[cmd].actionName, strlen(cmdInfo_G[cmd].actionName)) == 0) {
+					// process "ON" message
+					if (val == 1) {
+						pid_t pid;
+
+						pid = fork();
+						if (pid == 0) {
+							// child
+							execl(cmdInfo_G[cmd].cmdStr, cmdInfo_G[cmd].cmdStr, (char*)NULL);
+						}
+						else if (pid > 0) {
+							// parent
+							if (verbose_G > 0)
+								printf("forking:'%s' as pid:%u\n", cmdInfo_G[cmd].cmdStr, pid);
+							cmdInfo_G[cmd].pid = pid;
+						}
+						else {
+							printf("fork() error\n");
+							break;
+						}
+					}
+
+					// process "OFF" message
+					else {
+						if (verbose_G > 0)
+							printf("terminating pid %u\n", cmdInfo_G[cmd].pid);
+						kill(cmdInfo_G[cmd].pid, SIGTERM);
+						waitpid(cmdInfo_G[cmd].pid, NULL, 0);
+					}
 				}
 			}
 		}
