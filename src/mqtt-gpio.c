@@ -35,6 +35,7 @@ typedef struct {
 typedef struct {
 	char *actionName;
 	char *cmdStr;
+	bool oneshot;
 	pid_t pid;
 	bool valid;
 } CMDinfo_t;
@@ -341,7 +342,7 @@ process_config_file (void)
 			}
 
 			// cmd to run (read up to the end of the line"
-			token = strtok(NULL, "\n");
+			token = strtok(NULL, delim);
 			if (token == NULL) {
 				printf("   invalid config line #%d: cmd to run expected\n", lineCnt);
 				exit(EXIT_FAILURE);
@@ -350,6 +351,23 @@ process_config_file (void)
 			if (cmdInfo_G[cmdInfoCnt_G].cmdStr == NULL) {
 				perror("strdup(cmd str)");
 				exit(EXIT_FAILURE);
+			}
+
+			// optional specifier: oneshot
+			token = strtok(NULL, "\n");
+			if (token == NULL) {
+				printf("   CMD line #%d does not include optional 'oneshot'\n", lineCnt);
+				cmdInfo_G[cmdInfoCnt_G].oneshot = false;
+			}
+			else {
+				if (strncmp(token, "oneshot", 7) == 0) {
+					printf("   CMD line #%d includes optional 'oneshot'\n", lineCnt);
+					cmdInfo_G[cmdInfoCnt_G].oneshot = true;
+				}
+				else {
+					printf("   invalid config line #%d: optional 'oneshot' expected\n", lineCnt);
+					exit(EXIT_FAILURE);
+				}
 			}
 
 			++cmdInfoCnt_G;
@@ -706,6 +724,12 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 							if (verbose_G > 0)
 								printf("forking:'%s' as pid:%u\n", cmdInfo_G[cmd].cmdStr, pid);
 							cmdInfo_G[cmd].pid = pid;
+
+							if (cmdInfo_G[cmd].oneshot) {
+								if (verbose_G > 0)
+									printf("oneshot detected, terminating pid %u\n", cmdInfo_G[cmd].pid);
+								waitpid(cmdInfo_G[cmd].pid, NULL, 0);
+							}
 						}
 						else {
 							printf("fork() error\n");
