@@ -24,43 +24,43 @@
 #define DEFAULT_CONFIG_FILE "/mqtt-gpio.conf"
 
 typedef struct {
-	char *gpioID;
-	char *chipStr;
-	struct gpiod_chip *chip;
+	char *gpioID_p;
+	char *chipStr_p;
+	struct gpiod_chip *chip_p;
 	int pin;
-	struct gpiod_line *line;
+	struct gpiod_line *line_p;
 	struct gpiod_line_request_config config;
 } GPIOinfo_t;
 
 typedef struct {
-	char *cmdID;
-	char *cmdStr;
+	char *cmdID_p;
+	char *cmdStr_p;
 	bool oneshot;
 	pid_t pid;
 	bool valid;
 } CMDinfo_t;
 
 typedef struct {
-	char *topicStr;
-	char *linkID;
+	char *topicStr_p;
+	char *linkID_p;
 	int qos;
 	bool inv;
 } SUBinfo_t;
 
-static char *defaultConfigFileName_G = NULL;
-static char *userConfigFile_G = NULL;
+static char *defaultConfigFileName_pG = NULL;
+static char *userConfigFile_pG = NULL;
 static int verbose_G = 0;
-static GPIOinfo_t *gpioInfo_G = NULL;
+static GPIOinfo_t *gpioInfo_pG = NULL;
 static int gpioInfoCnt_G = 0;
-static SUBinfo_t *subInfo_G = NULL;
+static SUBinfo_t *subInfo_pG = NULL;
 static int subInfoCnt_G = 0;
-static CMDinfo_t *cmdInfo_G = NULL;
+static CMDinfo_t *cmdInfo_pG = NULL;
 static int cmdInfoCnt_G = 0;
-static char *mqttServer_G = NULL;
+static char *mqttServer_pG = NULL;
 static int mqttServerPort_G = 0;
-static struct mosquitto *mosq_G = NULL;
+static struct mosquitto *mosq_pG = NULL;
 
-static void usage (char *pgm);
+static void usage (char *pgm_p);
 static void parse_cmdline (int argc, char *argv[]);
 static void set_default_config_filename (void);
 static void process_config_file (void);
@@ -69,8 +69,8 @@ static void init_GPIOinfo (void);
 static void init_CMDinfo (void);
 static void init_mosquitto (void);
 static void cleanup (void);
-static void connect_callback (struct mosquitto *mosq, void *userdata, int result);
-static void process_message (struct mosquitto *mosq, void *userdata, const struct mosquitto_message *msg);
+static void connect_callback (struct mosquitto *mosq_p, void *userdata_p, int result);
+static void process_message (struct mosquitto *mosq_p, void *userdata_p, const struct mosquitto_message *msg_p);
 
 int
 main (int argc, char *argv[])
@@ -84,21 +84,21 @@ main (int argc, char *argv[])
 	init_CMDinfo();
 	init_SUBinfo();
 	init_mosquitto();
-	mosquitto_loop_forever(mosq_G, -1, 1);
+	mosquitto_loop_forever(mosq_pG, -1, 1);
 
 	return EXIT_SUCCESS;
 }
 
 static void
-usage (char *pgm)
+usage (char *pgm_p)
 {
-	printf("usage: %s [OPTIONS]\n", pgm);
+	printf("usage: %s [OPTIONS]\n", pgm_p);
 	printf("  where <OPTIONS> are:\n");
 	printf("    -h | --help        Print help options to terminal and exit successfully\n");
 	printf("    -v | --version     Show program version information and exit successfully\n");
 	printf("    -V | --verbose     Run program verbosely, use multiple for more verbosity\n");
 	printf("    -c | --config <f>  Use <f> for config instead of default (%s)\n",
-			defaultConfigFileName_G);
+			defaultConfigFileName_pG);
 }
 
 static void
@@ -131,9 +131,9 @@ parse_cmdline (int argc, char *argv[])
 				break;
 
 			case 'c':
-				free(defaultConfigFileName_G);
-				defaultConfigFileName_G = NULL;
-				userConfigFile_G = optarg;
+				free(defaultConfigFileName_pG);
+				defaultConfigFileName_pG = NULL;
+				userConfigFile_pG = optarg;
 				break;
 
 			default:
@@ -156,91 +156,91 @@ set_default_config_filename (void)
 
 	// set default config file/location based on ./configure
 	len = strlen(ETCPKGDIR) + strlen(DEFAULT_CONFIG_FILE);
-	defaultConfigFileName_G = (char*)malloc(len + 1);
-	if (defaultConfigFileName_G == NULL) {
+	defaultConfigFileName_pG = (char*)malloc(len + 1);
+	if (defaultConfigFileName_pG == NULL) {
 		perror("malloc()");
 		exit(EXIT_FAILURE);
 	}
-	memset(defaultConfigFileName_G, 0, len+1);
-	defaultConfigFileName_G = strcat(defaultConfigFileName_G, ETCPKGDIR);
-	defaultConfigFileName_G = strcat(defaultConfigFileName_G, DEFAULT_CONFIG_FILE);
-	userConfigFile_G = defaultConfigFileName_G;
+	memset(defaultConfigFileName_pG, 0, len+1);
+	defaultConfigFileName_pG = strcat(defaultConfigFileName_pG, ETCPKGDIR);
+	defaultConfigFileName_pG = strcat(defaultConfigFileName_pG, DEFAULT_CONFIG_FILE);
+	userConfigFile_pG = defaultConfigFileName_pG;
 }
 
 static void
 process_config_file (void)
 {
-	FILE *stream;
-	char *line = NULL;
+	FILE *stream_p;
+	char *line_p = NULL;
 	size_t len = 0;
 	ssize_t nread;
-	const char *delim = " \t\n";
-	char *token;
+	const char *delim_p = " \t\n";
+	char *token_p;
 	unsigned lineCnt;
 
-	if (userConfigFile_G == NULL) {
+	if (userConfigFile_pG == NULL) {
 		printf("no config file specified\n");
 		exit(EXIT_FAILURE);
 	}
 
-	stream = fopen(userConfigFile_G, "r");
-	if (stream == NULL) {
+	stream_p = fopen(userConfigFile_pG, "r");
+	if (stream_p == NULL) {
 		perror("fopen()");
-		printf("%s\n", userConfigFile_G);
+		printf("%s\n", userConfigFile_pG);
 		exit(EXIT_FAILURE);
 	}
 
 	lineCnt = 0;
-	while ((nread = getline(&line, &len, stream)) != -1) {
+	while ((nread = getline(&line_p, &len, stream_p)) != -1) {
 		++lineCnt;
 
 		if (verbose_G > 1)
-			printf("config[%03d]: %s", lineCnt, line);
+			printf("config[%03d]: %s", lineCnt, line_p);
 
 		// skip blank lines and lines starting with '#'
-		if (line[0] == '#') {
+		if (line_p[0] == '#') {
 			if (verbose_G > 1)
 				printf(" skipping comment\n");
 			continue;
 		}
-		if (line[0] == '\n') {
+		if (line_p[0] == '\n') {
 			if (verbose_G > 1)
 				printf(" skipping empty line\n");
 			continue;
 		}
 
-		token = strtok(line, delim);
-		if (token == NULL) {
+		token_p = strtok(line_p, delim_p);
+		if (token_p == NULL) {
 			printf("   invalid config line #%d: no CMD\n", lineCnt);
 			continue;
 		}
 
 		// MQTT
-		if (strcmp(token, "MQTT") == 0) {
+		if (strcmp(token_p, "MQTT") == 0) {
 			if (verbose_G)
 				printf("found an MQTT\n");
 
 			// server DNS/IP
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: MQTT server DNS/IP expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G)
-				printf("   MQTT server DNS/IP: %s\n", token);
-			mqttServer_G = strdup(token);
-			if (mqttServer_G == NULL) {
+				printf("   MQTT server DNS/IP: %s\n", token_p);
+			mqttServer_pG = strdup(token_p);
+			if (mqttServer_pG == NULL) {
 				perror("strdup(MQTT server)");
 				exit(EXIT_FAILURE);
 			}
 
 			// server port
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: MQTT server port expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
-			mqttServerPort_G = atoi(token);
+			mqttServerPort_G = atoi(token_p);
 			if (verbose_G)
 				printf("   MQTT port: %d\n", mqttServerPort_G);
 
@@ -248,7 +248,7 @@ process_config_file (void)
 		}
 
 		// GPIO
-		if (strcmp(token, "GPIO") == 0) {
+		if (strcmp(token_p, "GPIO") == 0) {
 			if (verbose_G > 1)
 				printf(" found a GPIO (cnt:%u)\n", gpioInfoCnt_G);
 
@@ -256,60 +256,60 @@ process_config_file (void)
 				printf("   no more room in GPIO table, not added\n");
 				continue;
 			}
-			gpioInfo_G = (GPIOinfo_t*)realloc(gpioInfo_G,
+			gpioInfo_pG = (GPIOinfo_t*)realloc(gpioInfo_pG,
 					((gpioInfoCnt_G+1) * sizeof(GPIOinfo_t)));
-			if (gpioInfo_G == NULL) {
+			if (gpioInfo_pG == NULL) {
 				perror("realloc(GPIO)");
 				exit(EXIT_FAILURE);
 			}
-			memset(&gpioInfo_G[gpioInfoCnt_G], 0, sizeof(GPIOinfo_t));
+			memset(&gpioInfo_pG[gpioInfoCnt_G], 0, sizeof(GPIOinfo_t));
 			if (verbose_G > 1)
 				printf("   realloc(GPIO)'ed\n");
 
 			// gpio name
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: gpio name expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   gpio name: %s\n", token);
-			gpioInfo_G[gpioInfoCnt_G].gpioID = strdup(token);
-			if (gpioInfo_G[gpioInfoCnt_G].gpioID == NULL) {
+				printf("   gpio name: %s\n", token_p);
+			gpioInfo_pG[gpioInfoCnt_G].gpioID_p = strdup(token_p);
+			if (gpioInfo_pG[gpioInfoCnt_G].gpioID_p == NULL) {
 				perror("strdup(gpio name)");
 				exit(EXIT_FAILURE);
 			}
 
 			// chip
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: chip expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   chip: %s\n", token);
-			gpioInfo_G[gpioInfoCnt_G].chipStr = strdup(token);
-			if (gpioInfo_G[gpioInfoCnt_G].chipStr == NULL) {
+				printf("   chip: %s\n", token_p);
+			gpioInfo_pG[gpioInfoCnt_G].chipStr_p = strdup(token_p);
+			if (gpioInfo_pG[gpioInfoCnt_G].chipStr_p == NULL) {
 				perror("strdup(chip)");
 				exit(EXIT_FAILURE);
 			}
 
 			// pin
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: pin expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   pin: %s\n", token);
-			gpioInfo_G[gpioInfoCnt_G].pin = atoi(token);
+				printf("   pin: %s\n", token_p);
+			gpioInfo_pG[gpioInfoCnt_G].pin = atoi(token_p);
 
 			++gpioInfoCnt_G;
 			continue;
 		}
 
 		// CMD
-		if (strcmp(token, "CMD") == 0) {
+		if (strcmp(token_p, "CMD") == 0) {
 			if (verbose_G > 1)
 				printf(" found a CMD (cnt:%u)\n", cmdInfoCnt_G);
 
@@ -317,54 +317,54 @@ process_config_file (void)
 				printf("  no more room in CMD table, not added\n");
 				continue;
 			}
-			cmdInfo_G = (CMDinfo_t*)realloc(cmdInfo_G,
+			cmdInfo_pG = (CMDinfo_t*)realloc(cmdInfo_pG,
 					((cmdInfoCnt_G+1) * sizeof(CMDinfo_t)));
-			if (cmdInfo_G == NULL) {
+			if (cmdInfo_pG == NULL) {
 				perror("realloc(CMD)");
 				exit(EXIT_FAILURE);
 			}
-			memset(&cmdInfo_G[cmdInfoCnt_G], 0, sizeof(CMDinfo_t));
+			memset(&cmdInfo_pG[cmdInfoCnt_G], 0, sizeof(CMDinfo_t));
 			if (verbose_G > 1)
 				printf("  realloc(CMD)'ed\n");
 
 			// cmdID
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: cmdID expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   cmdID: %s\n", token);
-			cmdInfo_G[cmdInfoCnt_G].cmdID = strdup(token);
-			if (cmdInfo_G[cmdInfoCnt_G].cmdID == NULL) {
+				printf("   cmdID: %s\n", token_p);
+			cmdInfo_pG[cmdInfoCnt_G].cmdID_p = strdup(token_p);
+			if (cmdInfo_pG[cmdInfoCnt_G].cmdID_p == NULL) {
 				perror("strdup(action name)");
 				exit(EXIT_FAILURE);
 			}
 
 			// cmd to run
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: cmd to run expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   cmd: %s\n", token);
-			cmdInfo_G[cmdInfoCnt_G].cmdStr = strdup(token);
-			if (cmdInfo_G[cmdInfoCnt_G].cmdStr == NULL) {
+				printf("   cmd: %s\n", token_p);
+			cmdInfo_pG[cmdInfoCnt_G].cmdStr_p = strdup(token_p);
+			if (cmdInfo_pG[cmdInfoCnt_G].cmdStr_p == NULL) {
 				perror("strdup(cmd str)");
 				exit(EXIT_FAILURE);
 			}
 
 			// optional specifier: oneshot
-			token = strtok(NULL, "\n");
-			if (token == NULL) {
+			token_p = strtok(NULL, "\n");
+			if (token_p == NULL) {
 				printf("   CMD line #%d does not include optional 'oneshot'\n", lineCnt);
-				cmdInfo_G[cmdInfoCnt_G].oneshot = false;
+				cmdInfo_pG[cmdInfoCnt_G].oneshot = false;
 			}
 			else {
-				if (strncmp(token, "oneshot", 7) == 0) {
+				if (strncmp(token_p, "oneshot", 7) == 0) {
 					printf("   CMD line #%d includes optional 'oneshot'\n", lineCnt);
-					cmdInfo_G[cmdInfoCnt_G].oneshot = true;
+					cmdInfo_pG[cmdInfoCnt_G].oneshot = true;
 				}
 				else {
 					printf("   invalid config line #%d: optional 'oneshot' expected\n", lineCnt);
@@ -377,7 +377,7 @@ process_config_file (void)
 		}
 
 		// SUB
-		if (strcmp(token, "SUB") == 0) {
+		if (strcmp(token_p, "SUB") == 0) {
 			if (verbose_G > 1)
 				printf(" found a SUB (cnt:%u)\n", subInfoCnt_G);
 
@@ -385,73 +385,73 @@ process_config_file (void)
 				printf("   no more room in SUB table, not added\n");
 				continue;
 			}
-			subInfo_G = (SUBinfo_t*)realloc(subInfo_G,
+			subInfo_pG = (SUBinfo_t*)realloc(subInfo_pG,
 					((subInfoCnt_G+1) * sizeof(SUBinfo_t)));
-			if (subInfo_G == NULL) {
+			if (subInfo_pG == NULL) {
 				perror("realloc(SUB)");
 				exit(EXIT_FAILURE);
 			}
-			memset(&subInfo_G[subInfoCnt_G], 0, sizeof(SUBinfo_t));
+			memset(&subInfo_pG[subInfoCnt_G], 0, sizeof(SUBinfo_t));
 			if (verbose_G > 1)
 				printf("   realloc(SUB)'ed\n");
 
 			// topic
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: topic expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   topic: %s\n", token);
-			subInfo_G[subInfoCnt_G].topicStr = strdup(token);
-			if (subInfo_G[subInfoCnt_G].topicStr == NULL) {
+				printf("   topic: %s\n", token_p);
+			subInfo_pG[subInfoCnt_G].topicStr_p = strdup(token_p);
+			if (subInfo_pG[subInfoCnt_G].topicStr_p == NULL) {
 				perror("strdup(topic)");
 				exit(EXIT_FAILURE);
 			}
 
 			// linkID name
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: linkID name expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   linkID: %s\n", token);
-			subInfo_G[subInfoCnt_G].linkID = strdup(token);
-			if (subInfo_G[subInfoCnt_G].linkID == NULL) {
+				printf("   linkID: %s\n", token_p);
+			subInfo_pG[subInfoCnt_G].linkID_p = strdup(token_p);
+			if (subInfo_pG[subInfoCnt_G].linkID_p == NULL) {
 				perror("strdup(linkID)");
 				exit(EXIT_FAILURE);
 			}
 
 			// qos
-			token = strtok(NULL, delim);
-			if (token == NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p == NULL) {
 				printf("   invalid config line #%d: qos expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   qos: %s\n", token);
-			subInfo_G[subInfoCnt_G].qos = atoi(token);
+				printf("   qos: %s\n", token_p);
+			subInfo_pG[subInfoCnt_G].qos = atoi(token_p);
 
 			// INV [optional]
-			token = strtok(NULL, delim);
-			if (token != NULL) {
+			token_p = strtok(NULL, delim_p);
+			if (token_p != NULL) {
 				if (verbose_G > 1)
-					printf("   INV: %s\n", token);
-				if (strncmp(token, "INV", 3) == 0)
-					subInfo_G[subInfoCnt_G].inv = true;
+					printf("   INV: %s\n", token_p);
+				if (strncmp(token_p, "INV", 3) == 0)
+					subInfo_pG[subInfoCnt_G].inv = true;
 			}
 
 			++subInfoCnt_G;
 			continue;
 		}
 
-		printf("   invalid config line #%d: unknown CMD: %s\n", lineCnt, token);
+		printf("   invalid config line #%d: unknown CMD: %s\n", lineCnt, token_p);
 		exit(EXIT_FAILURE);
 	}
 
-	free(line);
-	fclose(stream);
+	free(line_p);
+	fclose(stream_p);
 }
 
 static void
@@ -468,28 +468,28 @@ init_GPIOinfo (void)
 	for (i=0; i<gpioInfoCnt_G; ++i) {
 		if (verbose_G > 0) {
 			printf("GPIO[%d]\n", i);
-			printf("\tid: %s\n", gpioInfo_G[i].gpioID);
-			printf("\tchip: %s\n", gpioInfo_G[i].chipStr);
-			printf("\tpin: %d\n", gpioInfo_G[i].pin);
+			printf("\tid: %s\n", gpioInfo_pG[i].gpioID_p);
+			printf("\tchip: %s\n", gpioInfo_pG[i].chipStr_p);
+			printf("\tpin: %d\n", gpioInfo_pG[i].pin);
 		}
 
 		// open chip
-		gpioInfo_G[i].chip = gpiod_chip_open_lookup(gpioInfo_G[i].chipStr);
-		if (gpioInfo_G[i].chip == NULL) {
-			printf("can't open gpio device: %s\n", gpioInfo_G[i].chipStr);
+		gpioInfo_pG[i].chip_p = gpiod_chip_open_lookup(gpioInfo_pG[i].chipStr_p);
+		if (gpioInfo_pG[i].chip_p == NULL) {
+			printf("can't open gpio device: %s\n", gpioInfo_pG[i].chipStr_p);
 			exit(EXIT_FAILURE);
 		}
 
 		// get line
-		gpioInfo_G[i].line = gpiod_chip_get_line(gpioInfo_G[i].chip, gpioInfo_G[i].pin);
-		if (gpioInfo_G[i].line == NULL) {
-			printf("can't get pin: %d\n", gpioInfo_G[i].pin);
+		gpioInfo_pG[i].line_p = gpiod_chip_get_line(gpioInfo_pG[i].chip_p, gpioInfo_pG[i].pin);
+		if (gpioInfo_pG[i].line_p == NULL) {
+			printf("can't get pin: %d\n", gpioInfo_pG[i].pin);
 			exit(EXIT_FAILURE);
 		}
 
 		// set config (direction)
-		gpioInfo_G[i].config.request_type = GPIOD_LINE_REQUEST_DIRECTION_OUTPUT;
-		ret = gpiod_line_request(gpioInfo_G[i].line, &gpioInfo_G[i].config, 0);
+		gpioInfo_pG[i].config.request_type = GPIOD_LINE_REQUEST_DIRECTION_OUTPUT;
+		ret = gpiod_line_request(gpioInfo_pG[i].line_p, &gpioInfo_pG[i].config, 0);
 		if (ret != 0) {
 			printf("can't set configuration for subscription %d\n", i);
 			exit(EXIT_FAILURE);
@@ -514,13 +514,13 @@ init_CMDinfo (void)
 	for (i=0; i<cmdInfoCnt_G; ++i) {
 		if (verbose_G > 0) {
 			printf("CMD[%d]\n", i);
-			printf("\tid: %s\n", cmdInfo_G[i].cmdID);
-			printf("\tcmd: %s\n", cmdInfo_G[i].cmdStr);
+			printf("\tid: %s\n", cmdInfo_pG[i].cmdID_p);
+			printf("\tcmd: %s\n", cmdInfo_pG[i].cmdStr_p);
 		}
 
-		cmdInfo_G[i].valid = false;
+		cmdInfo_pG[i].valid = false;
 
-		cmdDup_p = strdup(cmdInfo_G[i].cmdStr);
+		cmdDup_p = strdup(cmdInfo_pG[i].cmdStr_p);
 		if (cmdDup_p == NULL) {
 			printf("\t\tstdup() failure\n");
 			continue;
@@ -533,28 +533,28 @@ init_CMDinfo (void)
 
 		ret = stat(cmdDup_p, &statInfo);
 		if (ret != 0) {
-			cmdInfo_G[i].valid = false;
+			cmdInfo_pG[i].valid = false;
 			printf("\t\tstat() failure, marked invalid\n");
 			if (cmdDup_p != NULL)
 				free(cmdDup_p);
 			continue;
 		}
 		if (!S_ISREG(statInfo.st_mode)) {
-			cmdInfo_G[i].valid = false;
+			cmdInfo_pG[i].valid = false;
 			printf("\t\tnot a regular file, marked invalid\n");
 			if (cmdDup_p != NULL)
 				free(cmdDup_p);
 			continue;
 		}
 		if (!(statInfo.st_mode & S_IXOTH)) {
-			cmdInfo_G[i].valid = false;
+			cmdInfo_pG[i].valid = false;
 			printf("\t\tnot executable, marked invalid\n");
 			if (cmdDup_p != NULL)
 				free(cmdDup_p);
 			continue;
 		}
-		cmdInfo_G[i].valid = true;
-		printf("\tvalid: %s\n", cmdInfo_G[i].valid? "yes" : "no");
+		cmdInfo_pG[i].valid = true;
+		printf("\tvalid: %s\n", cmdInfo_pG[i].valid? "yes" : "no");
 		if (cmdDup_p != NULL)
 			free(cmdDup_p);
 	}
@@ -574,9 +574,9 @@ init_SUBinfo (void)
 	for (i=0; i<subInfoCnt_G; ++i) {
 		if (verbose_G > 0) {
 			printf("SUB[%d]\n", i);
-			printf("\ttopic: %s\n", subInfo_G[i].topicStr);
-			printf("\tlink: %s\n", subInfo_G[i].linkID);
-			printf("\tqos: %d\n", subInfo_G[i].qos);
+			printf("\ttopic: %s\n", subInfo_pG[i].topicStr_p);
+			printf("\tlink: %s\n", subInfo_pG[i].linkID_p);
+			printf("\tqos: %d\n", subInfo_pG[i].qos);
 		}
 	}
 }
@@ -593,19 +593,19 @@ init_mosquitto (void)
 		exit(EXIT_FAILURE);
 	}
 
-	mosq_G = mosquitto_new(NULL, true, NULL);
-	if (mosq_G == NULL) {
+	mosq_pG = mosquitto_new(NULL, true, NULL);
+	if (mosq_pG == NULL) {
 		perror("mosquitto_new()");
 		exit(EXIT_FAILURE);
 	}
 
-	mosquitto_connect_callback_set(mosq_G, connect_callback);
-	mosquitto_message_callback_set(mosq_G, process_message);
+	mosquitto_connect_callback_set(mosq_pG, connect_callback);
+	mosquitto_message_callback_set(mosq_pG, process_message);
 
 	// loop forever, if necessary, on first connection
 	// on failure, wait 60 seconds before trying again
 	while (1) {
-		ret = mosquitto_connect(mosq_G, mqttServer_G, mqttServerPort_G, 10);
+		ret = mosquitto_connect(mosq_pG, mqttServer_pG, mqttServerPort_G, 10);
 		if (ret == MOSQ_ERR_SUCCESS)
 			break;
 		sleep(sleepSec);
@@ -619,44 +619,44 @@ cleanup (void)
 {
 	int i;
 
-	if (mosq_G != NULL) {
-		mosquitto_destroy(mosq_G);
+	if (mosq_pG != NULL) {
+		mosquitto_destroy(mosq_pG);
 		mosquitto_lib_cleanup();
 	}
 
-	if (userConfigFile_G == defaultConfigFileName_G)
-		free(defaultConfigFileName_G);
+	if (userConfigFile_pG == defaultConfigFileName_pG)
+		free(defaultConfigFileName_pG);
 
-	if (mqttServer_G != NULL)
-		free (mqttServer_G);
+	if (mqttServer_pG != NULL)
+		free (mqttServer_pG);
 
 	if (gpioInfoCnt_G > 0) {
 		for (i=gpioInfoCnt_G-1; i>=0; --i) {
-			if (gpioInfo_G[i].gpioID != NULL)
-				free(gpioInfo_G[i].gpioID);
-			if (gpioInfo_G[i].chipStr != NULL)
-				free(gpioInfo_G[i].chipStr);
-			if (gpioInfo_G[i].line != NULL)
-				gpiod_line_release(gpioInfo_G[i].line);
-			if (gpioInfo_G[i].chip != NULL)
-				gpiod_chip_close(gpioInfo_G[i].chip);
+			if (gpioInfo_pG[i].gpioID_p != NULL)
+				free(gpioInfo_pG[i].gpioID_p);
+			if (gpioInfo_pG[i].chipStr_p != NULL)
+				free(gpioInfo_pG[i].chipStr_p);
+			if (gpioInfo_pG[i].line_p != NULL)
+				gpiod_line_release(gpioInfo_pG[i].line_p);
+			if (gpioInfo_pG[i].chip_p != NULL)
+				gpiod_chip_close(gpioInfo_pG[i].chip_p);
 		}
-		free(gpioInfo_G);
+		free(gpioInfo_pG);
 	}
 
 	if (subInfoCnt_G > 0) {
 		for (i=subInfoCnt_G-1; i>=0; --i) {
-			if (subInfo_G[i].topicStr != NULL)
-				free(subInfo_G[i].topicStr);
-			if (subInfo_G[i].linkID != NULL)
-				free(subInfo_G[i].linkID);
+			if (subInfo_pG[i].topicStr_p != NULL)
+				free(subInfo_pG[i].topicStr_p);
+			if (subInfo_pG[i].linkID_p != NULL)
+				free(subInfo_pG[i].linkID_p);
 		}
-		free(subInfo_G);
+		free(subInfo_pG);
 	}
 }
 
 static void
-connect_callback (struct mosquitto *mosq, NOTU void *userdata, int result)
+connect_callback (struct mosquitto *mosq_p, NOTU void *userdata_p, int result)
 {
 	int i, ret;
 
@@ -665,37 +665,37 @@ connect_callback (struct mosquitto *mosq, NOTU void *userdata, int result)
 			printf("connected!\n");
 
 		for (i=0; i<subInfoCnt_G; ++i) {
-			ret = mosquitto_subscribe(mosq, NULL, subInfo_G[i].topicStr, subInfo_G[i].qos);
+			ret = mosquitto_subscribe(mosq_p, NULL, subInfo_pG[i].topicStr_p, subInfo_pG[i].qos);
 			if (ret != MOSQ_ERR_SUCCESS)
-				printf("can't subscribe to topic: '%s'\n", subInfo_G[i].topicStr);
+				printf("can't subscribe to topic: '%s'\n", subInfo_pG[i].topicStr_p);
 			else
-				printf("subscribed to topic: '%s'\n", subInfo_G[i].topicStr);
+				printf("subscribed to topic: '%s'\n", subInfo_pG[i].topicStr_p);
 		}
 	}
 }
 
 static void
-process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct mosquitto_message *msg)
+process_message (NOTU struct mosquitto *mosq_p, NOTU void *userdata_p, const struct mosquitto_message *msg_p)
 {
 	int topic, gpio, cmd, val;
 
 	// check payload
 	val = -1;
-	if (strncmp((char*)msg->payload, "ON", strlen((char*)msg->payload)) == 0)
+	if (strncmp((char*)msg_p->payload, "ON", strlen((char*)msg_p->payload)) == 0)
 		val = 1;
-	if (strncmp((char*)msg->payload, "OFF", strlen((char*)msg->payload)) == 0)
+	if (strncmp((char*)msg_p->payload, "OFF", strlen((char*)msg_p->payload)) == 0)
 		val = 0;
 	if (val == -1) {
-		printf("unhandled payload: '%s'\n", (char*)msg->payload);
+		printf("unhandled payload: '%s'\n", (char*)msg_p->payload);
 		return;
 	}
 
 	for (topic=0; topic<subInfoCnt_G; ++topic) {
-		if (strncmp(msg->topic, subInfo_G[topic].topicStr, strlen(subInfo_G[topic].topicStr)) == 0) {
+		if (strncmp(msg_p->topic, subInfo_pG[topic].topicStr_p, strlen(subInfo_pG[topic].topicStr_p)) == 0) {
 			// check for any gpios with this topic
 			for (gpio=0; gpio<gpioInfoCnt_G; ++gpio) {
-				if (strncmp(subInfo_G[topic].linkID, gpioInfo_G[gpio].gpioID, strlen(gpioInfo_G[gpio].gpioID)) == 0) {
-					if (subInfo_G[topic].inv) {
+				if (strncmp(subInfo_pG[topic].linkID_p, gpioInfo_pG[gpio].gpioID_p, strlen(gpioInfo_pG[gpio].gpioID_p)) == 0) {
+					if (subInfo_pG[topic].inv) {
 						if (val == 0)
 							val = 1;
 						else if (val == 1)
@@ -703,19 +703,19 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 					}
 					if (verbose_G)
 						printf("setting gpio chip %s pin %d to %d%s\n",
-								gpioInfo_G[gpio].chipStr,
-								gpioInfo_G[gpio].pin, val,
-								subInfo_G[topic].inv? " INV" : "");
-					gpiod_line_set_value(gpioInfo_G[gpio].line, val);
+								gpioInfo_pG[gpio].chipStr_p,
+								gpioInfo_pG[gpio].pin, val,
+								subInfo_pG[topic].inv? " INV" : "");
+					gpiod_line_set_value(gpioInfo_pG[gpio].line_p, val);
 				}
 			}
 
 			// check for any *valid* cmds with this topic
 			for (cmd=0; cmd<cmdInfoCnt_G; ++cmd) {
-				if (!cmdInfo_G[cmd].valid)
+				if (!cmdInfo_pG[cmd].valid)
 					continue;
 
-				if (strncmp(subInfo_G[topic].linkID, cmdInfo_G[cmd].cmdID, strlen(cmdInfo_G[cmd].cmdID)) == 0) {
+				if (strncmp(subInfo_pG[topic].linkID_p, cmdInfo_pG[cmd].cmdID_p, strlen(cmdInfo_pG[cmd].cmdID_p)) == 0) {
 					// process "ON" message
 					if (val == 1) {
 						pid_t pid;
@@ -723,18 +723,18 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 						pid = fork();
 						if (pid == 0) {
 							// child
-							execl(cmdInfo_G[cmd].cmdStr, cmdInfo_G[cmd].cmdStr, (char*)NULL);
+							execl(cmdInfo_pG[cmd].cmdStr_p, cmdInfo_pG[cmd].cmdStr_p, (char*)NULL);
 						}
 						else if (pid > 0) {
 							// parent
 							if (verbose_G > 0)
-								printf("forking:'%s' as pid:%u\n", cmdInfo_G[cmd].cmdStr, pid);
-							cmdInfo_G[cmd].pid = pid;
+								printf("forking:'%s' as pid:%u\n", cmdInfo_pG[cmd].cmdStr_p, pid);
+							cmdInfo_pG[cmd].pid = pid;
 
-							if (cmdInfo_G[cmd].oneshot) {
+							if (cmdInfo_pG[cmd].oneshot) {
 								if (verbose_G > 0)
-									printf("oneshot detected, terminating pid %u\n", cmdInfo_G[cmd].pid);
-								waitpid(cmdInfo_G[cmd].pid, NULL, 0);
+									printf("oneshot detected, terminating pid %u\n", cmdInfo_pG[cmd].pid);
+								waitpid(cmdInfo_pG[cmd].pid, NULL, 0);
 							}
 						}
 						else {
@@ -746,9 +746,9 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 					// process "OFF" message
 					else {
 						if (verbose_G > 0)
-							printf("terminating pid %u\n", cmdInfo_G[cmd].pid);
-						kill(cmdInfo_G[cmd].pid, SIGTERM);
-						waitpid(cmdInfo_G[cmd].pid, NULL, 0);
+							printf("terminating pid %u\n", cmdInfo_pG[cmd].pid);
+						kill(cmdInfo_pG[cmd].pid, SIGTERM);
+						waitpid(cmdInfo_pG[cmd].pid, NULL, 0);
 					}
 				}
 			}
