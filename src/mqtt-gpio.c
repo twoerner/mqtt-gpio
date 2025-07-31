@@ -24,7 +24,7 @@
 #define DEFAULT_CONFIG_FILE "/mqtt-gpio.conf"
 
 typedef struct {
-	char *gpioName;
+	char *gpioID;
 	char *chipStr;
 	struct gpiod_chip *chip;
 	int pin;
@@ -33,7 +33,7 @@ typedef struct {
 } GPIOinfo_t;
 
 typedef struct {
-	char *actionName;
+	char *cmdID;
 	char *cmdStr;
 	bool oneshot;
 	pid_t pid;
@@ -42,7 +42,7 @@ typedef struct {
 
 typedef struct {
 	char *topicStr;
-	char *gpioName;
+	char *linkID;
 	int qos;
 	bool inv;
 } SUBinfo_t;
@@ -274,8 +274,8 @@ process_config_file (void)
 			}
 			if (verbose_G > 1)
 				printf("   gpio name: %s\n", token);
-			gpioInfo_G[gpioInfoCnt_G].gpioName = strdup(token);
-			if (gpioInfo_G[gpioInfoCnt_G].gpioName == NULL) {
+			gpioInfo_G[gpioInfoCnt_G].gpioID = strdup(token);
+			if (gpioInfo_G[gpioInfoCnt_G].gpioID == NULL) {
 				perror("strdup(gpio name)");
 				exit(EXIT_FAILURE);
 			}
@@ -327,26 +327,28 @@ process_config_file (void)
 			if (verbose_G > 1)
 				printf("  realloc(CMD)'ed\n");
 
-			// action name
+			// cmdID
 			token = strtok(NULL, delim);
 			if (token == NULL) {
-				printf("   invalid config line #%d: cmd name expected\n", lineCnt);
+				printf("   invalid config line #%d: cmdID expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   cmd name: %s\n", token);
-			cmdInfo_G[cmdInfoCnt_G].actionName = strdup(token);
-			if (cmdInfo_G[cmdInfoCnt_G].actionName == NULL) {
+				printf("   cmdID: %s\n", token);
+			cmdInfo_G[cmdInfoCnt_G].cmdID = strdup(token);
+			if (cmdInfo_G[cmdInfoCnt_G].cmdID == NULL) {
 				perror("strdup(action name)");
 				exit(EXIT_FAILURE);
 			}
 
-			// cmd to run (read up to the end of the line"
+			// cmd to run
 			token = strtok(NULL, delim);
 			if (token == NULL) {
 				printf("   invalid config line #%d: cmd to run expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
+			if (verbose_G > 1)
+				printf("   cmd: %s\n", token);
 			cmdInfo_G[cmdInfoCnt_G].cmdStr = strdup(token);
 			if (cmdInfo_G[cmdInfoCnt_G].cmdStr == NULL) {
 				perror("strdup(cmd str)");
@@ -407,17 +409,17 @@ process_config_file (void)
 				exit(EXIT_FAILURE);
 			}
 
-			// gpio name
+			// linkID name
 			token = strtok(NULL, delim);
 			if (token == NULL) {
-				printf("   invalid config line #%d: gpio name expected\n", lineCnt);
+				printf("   invalid config line #%d: linkID name expected\n", lineCnt);
 				exit(EXIT_FAILURE);
 			}
 			if (verbose_G > 1)
-				printf("   gpio name: %s\n", token);
-			subInfo_G[subInfoCnt_G].gpioName = strdup(token);
-			if (subInfo_G[subInfoCnt_G].gpioName == NULL) {
-				perror("strdup(gpio name)");
+				printf("   linkID: %s\n", token);
+			subInfo_G[subInfoCnt_G].linkID = strdup(token);
+			if (subInfo_G[subInfoCnt_G].linkID == NULL) {
+				perror("strdup(linkID)");
 				exit(EXIT_FAILURE);
 			}
 
@@ -466,6 +468,7 @@ init_GPIOinfo (void)
 	for (i=0; i<gpioInfoCnt_G; ++i) {
 		if (verbose_G > 0) {
 			printf("GPIO[%d]\n", i);
+			printf("\tid: %s\n", gpioInfo_G[i].gpioID);
 			printf("\tchip: %s\n", gpioInfo_G[i].chipStr);
 			printf("\tpin: %d\n", gpioInfo_G[i].pin);
 		}
@@ -511,7 +514,7 @@ init_CMDinfo (void)
 	for (i=0; i<cmdInfoCnt_G; ++i) {
 		if (verbose_G > 0) {
 			printf("CMD[%d]\n", i);
-			printf("\taction: %s\n", cmdInfo_G[i].actionName);
+			printf("\tid: %s\n", cmdInfo_G[i].cmdID);
 			printf("\tcmd: %s\n", cmdInfo_G[i].cmdStr);
 		}
 
@@ -572,7 +575,7 @@ init_SUBinfo (void)
 		if (verbose_G > 0) {
 			printf("SUB[%d]\n", i);
 			printf("\ttopic: %s\n", subInfo_G[i].topicStr);
-			printf("\tgpio: %s\n", subInfo_G[i].gpioName);
+			printf("\tlink: %s\n", subInfo_G[i].linkID);
 			printf("\tqos: %d\n", subInfo_G[i].qos);
 		}
 	}
@@ -629,8 +632,8 @@ cleanup (void)
 
 	if (gpioInfoCnt_G > 0) {
 		for (i=gpioInfoCnt_G-1; i>=0; --i) {
-			if (gpioInfo_G[i].gpioName != NULL)
-				free(gpioInfo_G[i].gpioName);
+			if (gpioInfo_G[i].gpioID != NULL)
+				free(gpioInfo_G[i].gpioID);
 			if (gpioInfo_G[i].chipStr != NULL)
 				free(gpioInfo_G[i].chipStr);
 			if (gpioInfo_G[i].line != NULL)
@@ -645,8 +648,8 @@ cleanup (void)
 		for (i=subInfoCnt_G-1; i>=0; --i) {
 			if (subInfo_G[i].topicStr != NULL)
 				free(subInfo_G[i].topicStr);
-			if (subInfo_G[i].gpioName != NULL)
-				free(subInfo_G[i].gpioName);
+			if (subInfo_G[i].linkID != NULL)
+				free(subInfo_G[i].linkID);
 		}
 		free(subInfo_G);
 	}
@@ -691,7 +694,7 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 		if (strncmp(msg->topic, subInfo_G[topic].topicStr, strlen(subInfo_G[topic].topicStr)) == 0) {
 			// check for any gpios with this topic
 			for (gpio=0; gpio<gpioInfoCnt_G; ++gpio) {
-				if (strncmp(subInfo_G[topic].gpioName, gpioInfo_G[gpio].gpioName, strlen(gpioInfo_G[gpio].gpioName)) == 0) {
+				if (strncmp(subInfo_G[topic].linkID, gpioInfo_G[gpio].gpioID, strlen(gpioInfo_G[gpio].gpioID)) == 0) {
 					if (subInfo_G[topic].inv) {
 						if (val == 0)
 							val = 1;
@@ -712,7 +715,7 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 				if (!cmdInfo_G[cmd].valid)
 					continue;
 
-				if (strncmp(subInfo_G[topic].gpioName, cmdInfo_G[cmd].actionName, strlen(cmdInfo_G[cmd].actionName)) == 0) {
+				if (strncmp(subInfo_G[topic].linkID, cmdInfo_G[cmd].cmdID, strlen(cmdInfo_G[cmd].cmdID)) == 0) {
 					// process "ON" message
 					if (val == 1) {
 						pid_t pid;
