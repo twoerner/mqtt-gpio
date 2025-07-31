@@ -36,8 +36,9 @@ typedef struct {
 	char *cmdID_p;
 	char *cmdStr_p;
 	bool oneshot;
-	pid_t pid;
 	bool valid;
+	pid_t pid;
+	bool running;
 } CMDinfo_t;
 
 typedef struct {
@@ -720,6 +721,12 @@ process_message (NOTU struct mosquitto *mosq_p, NOTU void *userdata_p, const str
 					if (val == 1) {
 						pid_t pid;
 
+						if (cmdInfo_pG[cmd].running) {
+							if (verbose_G > 0)
+								printf("not re-running an already-existing cmd: pid:%u\n", cmdInfo_pG[cmd].pid);
+							break;
+						}
+
 						pid = fork();
 						if (pid == 0) {
 							// child
@@ -730,11 +737,13 @@ process_message (NOTU struct mosquitto *mosq_p, NOTU void *userdata_p, const str
 							if (verbose_G > 0)
 								printf("forking:'%s' as pid:%u\n", cmdInfo_pG[cmd].cmdStr_p, pid);
 							cmdInfo_pG[cmd].pid = pid;
+							cmdInfo_pG[cmd].running = true;
 
 							if (cmdInfo_pG[cmd].oneshot) {
 								if (verbose_G > 0)
 									printf("oneshot detected, terminating pid %u\n", cmdInfo_pG[cmd].pid);
 								waitpid(cmdInfo_pG[cmd].pid, NULL, 0);
+								cmdInfo_pG[cmd].running = false;
 							}
 						}
 						else {
@@ -745,10 +754,13 @@ process_message (NOTU struct mosquitto *mosq_p, NOTU void *userdata_p, const str
 
 					// process "OFF" message
 					else {
-						if (verbose_G > 0)
-							printf("terminating pid %u\n", cmdInfo_pG[cmd].pid);
-						kill(cmdInfo_pG[cmd].pid, SIGTERM);
-						waitpid(cmdInfo_pG[cmd].pid, NULL, 0);
+						if (cmdInfo_pG[cmd].running) {
+							if (verbose_G > 0)
+								printf("terminating pid %u\n", cmdInfo_pG[cmd].pid);
+							kill(cmdInfo_pG[cmd].pid, SIGTERM);
+							waitpid(cmdInfo_pG[cmd].pid, NULL, 0);
+							cmdInfo_pG[cmd].running = false;
+						}
 					}
 				}
 			}
