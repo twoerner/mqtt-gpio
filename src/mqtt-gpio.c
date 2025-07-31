@@ -707,8 +707,11 @@ process_message (NOTU struct mosquitto *mosq, NOTU void *userdata, const struct 
 				}
 			}
 
-			// check for any cmds with this topic
+			// check for any *valid* cmds with this topic
 			for (cmd=0; cmd<cmdInfoCnt_G; ++cmd) {
+				if (!cmdInfo_G[cmd].valid)
+					continue;
+
 				if (strncmp(subInfo_G[topic].gpioName, cmdInfo_G[cmd].actionName, strlen(cmdInfo_G[cmd].actionName)) == 0) {
 					// process "ON" message
 					if (val == 1) {
